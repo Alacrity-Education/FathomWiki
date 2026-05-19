@@ -1,0 +1,6 @@
+services:
+  fathom-processor:
+    build: .
+    env_file: .env
+    volumes:
+      - ./output:/output
