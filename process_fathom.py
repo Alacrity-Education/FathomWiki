@@ -196,7 +196,19 @@ def git_commit_and_push(filename: str):
 
 
 def transform_with_claude(text: str, subject: str) -> str:
+    now_iso = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")
     prompt = f"""Transform the following meeting notes into clean, well-structured Markdown.
+
+The output MUST start with this exact YAML frontmatter block (fill in title and description):
+---
+title: <meeting title>
+description: <one-line meeting summary>
+published: true
+date: {now_iso}
+tags: meeting
+editor: markdown
+dateCreated: {now_iso}
+---
 
 Rules:
 - Use a top-level # heading with the meeting title
@@ -206,7 +218,6 @@ Rules:
 - Clean up any artifacts from HTML conversion
 - Preserve all factual content — do not summarize or omit details
 - If there are action items, format them as a checklist with - [ ]
-- Add a metadata block at the top with date and attendees if available
 - Some items have Fathom video recording links in the format [rec](https://fathom.video/calls/...). Preserve these links by placing them inline as superscript right after the relevant text using this exact format: ^[rec](URL)^
 
 Meeting title: {subject}
