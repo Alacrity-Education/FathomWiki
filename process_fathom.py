@@ -225,22 +225,22 @@ def process_inbox():
     mail.login(EMAIL_USER, EMAIL_PASS)
     mail.select("INBOX")
 
-    search_criteria = f'(UNSEEN FROM "@{SENDER_DOMAIN}")'
-    print(f"  Searching: {search_criteria}")
+    search_criteria = f'(FROM "@{SENDER_DOMAIN}")'
+    print(f"  Searching: {search_criteria}", flush=True)
     status, data = mail.search(None, search_criteria)
 
     if status != "OK":
-        print(f"  Search failed: {status}", file=sys.stderr)
+        print(f"  Search failed: {status}", file=sys.stderr, flush=True)
         mail.logout()
         return
 
     msg_ids = data[0].split()
     if not msg_ids:
-        print("  No new Fathom emails found.")
+        print("  No Fathom emails found.", flush=True)
         mail.logout()
         return
 
-    print(f"  Found {len(msg_ids)} new email(s).")
+    print(f"  Found {len(msg_ids)} email(s).", flush=True)
     git_sync_repo()
 
     for msg_id in msg_ids:

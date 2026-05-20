@@ -1,11 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    echo "ERROR: ANTHROPIC_API_KEY is required" >&2
-    exit 1
-fi
-
 if [ -z "${EMAIL_USER:-}" ] || [ -z "${EMAIL_PASS:-}" ]; then
     echo "ERROR: EMAIL_USER and EMAIL_PASS are required" >&2
     exit 1

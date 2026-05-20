@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN npm install -g @anthropic-ai/claude-code
 
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 COPY process_fathom.py .
 COPY entrypoint.sh .
