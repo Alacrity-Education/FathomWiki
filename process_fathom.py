@@ -254,7 +254,7 @@ def transform_with_claude(text: str, subject: str) -> str:
 
 The output MUST start with this exact YAML frontmatter block (fill in title and description):
 ---
-title: <meeting title>
+title: <meeting title — use Title Case, capitalizing all important words>
 description: <one-line meeting summary>
 published: true
 date: {now_iso}
