@@ -243,6 +243,9 @@ def process_inbox():
     print(f"  Found {len(msg_ids)} email(s).", flush=True)
     git_sync_repo()
 
+    meetings_dir = OUTPUT_DIR / "Meetings"
+    meetings_dir.mkdir(exist_ok=True)
+
     for msg_id in msg_ids:
         status, msg_data = mail.fetch(msg_id, "(RFC822)")
         if status != "OK":
@@ -282,7 +285,7 @@ def process_inbox():
         title = extract_meeting_title(subject)
         mid = meeting_hash(subject)
 
-        existing = list(OUTPUT_DIR.glob(f"*-{mid}.md"))
+        existing = list(meetings_dir.glob(f"*-{mid}.md"))
         if existing:
             print(f"    Already processed (MeetingID {mid}): {existing[0].name}, skipping.")
             if MARK_AS_READ:
@@ -304,12 +307,12 @@ def process_inbox():
 
         slug = slugify(title)
         filename = f"{slug}-{mid}.md"
-        out_path = OUTPUT_DIR / filename
+        out_path = meetings_dir / filename
 
         out_path.write_text(markdown, encoding="utf-8")
         print(f"    Saved: {out_path}")
 
-        git_commit_and_push(filename)
+        git_commit_and_push(f"Meetings/{filename}")
 
         if MARK_AS_READ:
             mail.store(msg_id, "+FLAGS", "\\Seen")
