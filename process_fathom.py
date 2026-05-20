@@ -101,6 +101,37 @@ def extract_notes_section(html_body: str) -> str:
     return html_body
 
 
+def extract_action_items(html_body: str) -> str:
+    """Extract Fathom's Action Items section (outside ai_notes_html_content)."""
+    action_start = html_body.find("Action Items")
+    if action_start < 0:
+        return ""
+
+    items = []
+    for m in re.finditer(r'class="ico-block-03[^"]*"[^>]*>(.*?)</td>', html_body[action_start:], re.DOTALL):
+        task_html = m.group(1)
+        link_m = re.search(r'href="([^"]*)"', task_html)
+        text_m = re.search(r'>\s*([^<]+)', task_html)
+        task_text = text_m.group(1).strip() if text_m else ""
+        task_link = link_m.group(1).replace("&amp;", "&") if link_m else ""
+
+        assignee_pos = action_start + m.end()
+        assignee_m = re.search(r'class="ico-block-02[^"]*"[^>]*>\s*([^<]+)', html_body[assignee_pos:assignee_pos + 500])
+        assignee = assignee_m.group(1).strip() if assignee_m else ""
+
+        if task_text:
+            line = f"- {task_text}"
+            if assignee:
+                line += f" — {assignee}"
+            if task_link:
+                line += f" [rec]({task_link})"
+            items.append(line)
+
+    if not items:
+        return ""
+    return "\n\nAction Items:\n" + "\n".join(items)
+
+
 def html_to_text(html: str) -> str:
     extractor = HTMLTextExtractor()
     extractor.feed(html)
@@ -195,6 +226,28 @@ def git_commit_and_push(filename: str):
     print("    Git: pushed successfully.")
 
 
+def is_meeting_recap(subject: str, notes_text: str) -> bool:
+    snippet = notes_text[:500]
+    prompt = (
+        "You are classifying emails from Fathom (a meeting notetaker service). "
+        "Determine whether this email contains actual meeting notes/recap, or is "
+        "something else (team invitation, reminder, marketing, feedback request, etc.).\n\n"
+        f"Subject: {subject}\n"
+        f"Body preview: {snippet}\n\n"
+        "Reply with exactly YES if this is a real meeting recap, or NO if it is not."
+    )
+    result = subprocess.run(
+        ["claude", "-p", "--output-format", "text", prompt],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        return True
+    answer = result.stdout.strip().upper()
+    return answer.startswith("YES")
+
+
 def transform_with_claude(text: str, subject: str) -> str:
     now_iso = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z")
     prompt = f"""Transform the following meeting notes into clean, well-structured Markdown.
@@ -211,14 +264,15 @@ dateCreated: {now_iso}
 ---
 
 Rules:
+- Do NOT wrap your output in ```markdown code fences. Output raw Markdown only.
 - Use a top-level # heading with the meeting title
 - Use ## for major sections (Key Takeaways, Topics, Action Items, etc.)
 - Use bullet points for lists
 - Use **bold** for speaker names or emphasis
 - Clean up any artifacts from HTML conversion
 - Preserve all factual content — do not summarize or omit details
-- If there are action items, format them as a checklist with - [ ]
-- Some items have Fathom video recording links in the format [rec](https://fathom.video/calls/...). Preserve these links by placing them inline as superscript right after the relevant text using this exact format: ^[rec](URL)^
+- If there are action items, format them as a checklist with - [ ] and include the assignee name in bold after each item. Preserve ALL action items from the notes — do not skip or summarize any.
+- Some items have Fathom video recording links in the format [rec](https://fathom.video/calls/...). Preserve these links inline right after the relevant text using this exact format: [rec](URL)
 
 Meeting title: {subject}
 
@@ -237,7 +291,10 @@ Meeting title: {subject}
         print(f"  claude -p failed (exit {result.returncode}): {result.stderr}", file=sys.stderr)
         return text
 
-    return result.stdout.strip()
+    output = result.stdout.strip()
+    output = re.sub(r"^```(?:markdown|md)?\s*\n", "", output)
+    output = re.sub(r"\n```\s*$", "", output)
+    return output
 
 
 def process_inbox():
@@ -298,6 +355,7 @@ def process_inbox():
 
         notes_html = extract_notes_section(html_body)
         notes_text = html_to_text(notes_html)
+        notes_text += extract_action_items(html_body)
 
         if len(notes_text.strip()) < 20:
             print("    Extracted notes too short, skipping.", file=sys.stderr)
@@ -309,6 +367,12 @@ def process_inbox():
         existing = list(meetings_dir.glob(f"*-{mid}.md"))
         if existing:
             print(f"    Already processed (MeetingID {mid}): {existing[0].name}, skipping.")
+            if MARK_AS_READ:
+                mail.store(msg_id, "+FLAGS", "\\Seen")
+            continue
+
+        if not is_meeting_recap(subject, notes_text):
+            print("    Claude classified as non-meeting email, skipping.")
             if MARK_AS_READ:
                 mail.store(msg_id, "+FLAGS", "\\Seen")
             continue
