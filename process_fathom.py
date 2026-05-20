@@ -35,6 +35,7 @@ class HTMLTextExtractor(HTMLParser):
         self._pieces = []
         self._skip = False
         self._block_tags = {"h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "li", "tr", "br"}
+        self._link_href = None
 
     def handle_starttag(self, tag, attrs):
         if tag in ("style", "script"):
@@ -45,12 +46,20 @@ class HTMLTextExtractor(HTMLParser):
             self._pieces.append("- ")
         if tag == "br":
             self._pieces.append("\n")
+        if tag == "a":
+            attr_dict = dict(attrs)
+            href = attr_dict.get("href", "")
+            if "fathom.video/calls/" in href:
+                self._link_href = href
 
     def handle_endtag(self, tag):
         if tag in ("style", "script"):
             self._skip = False
         if tag in self._block_tags:
             self._pieces.append("\n")
+        if tag == "a" and self._link_href:
+            self._pieces.append(f" [rec]({self._link_href})")
+            self._link_href = None
 
     def handle_data(self, data):
         if not self._skip:
@@ -198,6 +207,7 @@ Rules:
 - Preserve all factual content — do not summarize or omit details
 - If there are action items, format them as a checklist with - [ ]
 - Add a metadata block at the top with date and attendees if available
+- Some items have Fathom video recording links in the format [rec](https://fathom.video/calls/...). Preserve these links by placing them inline as superscript right after the relevant text using this exact format: ^[rec](URL)^
 
 Meeting title: {subject}
 
